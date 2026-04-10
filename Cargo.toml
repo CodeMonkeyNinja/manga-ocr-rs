@@ -1,0 +1,19 @@
+[package]
+name = "manga-ocr-rs"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Japanese manga OCR — ViT encoder + BERT decoder via ONNX Runtime, no Python"
+repository = "https://github.com/CodeMonkeyNinja/manga-ocr-rs"
+keywords = ["ocr", "japanese", "manga", "onnx"]
+categories = ["multimedia::images", "text-processing"]
+readme = "README.md"
+
+[[bin]]
+name = "manga-ocr"
+path = "src/main.rs"
+
+[dependencies]
+ort    = "2.0.0-rc.12"
+image  = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+anyhow = "1.0"

@@ -13,6 +13,10 @@ target
 # Contains mutation testing data
 **/mutants.out*/
 
+# Model files — downloaded automatically by build.rs, never commit
+# Override location: MANGA_OCR_MODELS_DIR=/your/path cargo build
+~/.cache/manga-ocr-rs/
+
 # RustRover
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
 #  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
