@@ -82,7 +82,7 @@ pixels via:
 
 - box_2d: `[632, 431, 712, 563]`
 - pixels: x1=537, y1=1033, x2=701, y2=1164 -> 164x131 crop
-- expected: `マジいってんんだぜ!`
+- expected: `マジいてえんだぞ!`
 - got: long hallucinated garbage
 - **Root cause: decorative action text with speed lines.** The text is rendered
   in a bold/slanted style with motion-line artwork behind it. The model
@@ -98,7 +98,7 @@ pixels via:
 
 - box_2d: `[629, 742, 730, 915]`
 - pixels: x1=925, y1=1028, x2=1140, y2=1194 -> 215x166 crop
-- expected: `よけなーこのっ!`
+- expected: `よけんなこのっ!`
 - got: long hallucinated garbage
 - **Root cause: same as #6.** Large decorative text with visual effects. The
   crop includes heavy screentone/action-line art that confuses the model.
@@ -108,12 +108,12 @@ pixels via:
 
 - box_2d: `[631, 41, 765, 239]`
 - pixels: x1=51, y1=1032, x2=298, y2=1251 -> 247x219 crop
-- expected: `ハモリながらケンカしないでっ`
+- expected: `ハモリながらケンカしないでーっ`
 - got: `ハモリながらケアカしないでーっ`
 - **Root cause: minor character misread.** `ン` misread as `ア` (visually
-  similar at small size), and an extra `ー` inserted. The crop size is
-  reasonable (247x219) so this may be a model accuracy limitation at this
-  font/size, or the bounding box clips slightly.
+  similar at small size). The crop size is reasonable (247x219) so this may
+  be a model accuracy limitation at this font/size, or the bounding box
+  clips slightly.
 - **Fix options:**
   - (a) Slightly adjust the bounding box to ensure full character visibility.
   - (b) Accept as a model limitation -- the output is close but not exact.

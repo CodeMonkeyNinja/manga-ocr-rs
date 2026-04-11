@@ -73,9 +73,9 @@ the model confuses visually similar katakana at this scale. See test doc comment
 | Top left bubble       | `最近人気の デスクトップな リナックスです！` | PASS                              | 34,826 ms |
 | Center caption        | `※ うぶんちゅではなくウブントゥです`         | FAIL — tiny text, hallucination   | 37,679 ms |
 | Middle bubble         | `却下！`                                     | PASS                              | 5,145 ms  |
-| Bottom center         | `マジいってん んだぜ！`                      | FAIL — slanted action text        | 24,365 ms |
+| Bottom center         | `マジ いてえ んだぞ！`                       | FAIL — slanted action text        | 24,365 ms |
 | Bottom right          | `よけんな このっ！`                          | FAIL — screaming/action text      | 18,426 ms |
-| Bottom left, top      | `ハモリながら ケンカしないでっ`              | FAIL — `ケンカ` → `ケアカ`        | 1,203 ms  |
+| Bottom left, top      | `ハモリながら ケンカしないでーっ`            | FAIL — `ケンカ` → `ケアカ`        | 1,203 ms  |
 | Bottom left, bottom   | `一瞬くらい 検討して くださいよー！`         | PASS                              | 37,936 ms |
 
 **4/9 pass** on real manga. Failures are documented in the test source.
