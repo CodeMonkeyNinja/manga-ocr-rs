@@ -2,7 +2,7 @@
 //!
 //! Uses three purpose-built fixtures in `assets/`:
 //!
-//!   Unit-test-horizontal.png  — `データを正確に読み取る`  (600×80, IPAGothic)
+//!   Unit-test-yokogaki.png    — `データを正確に読み取る`  (600×80, IPAGothic)
 //!   Unit-test-tategaki.png    — `言語モデルのテスト`       (70×450, IPAGothic)
 //!   Unit-test-tegaki.png      — `手書きの文字サンプル`     (500×80, Dejima-Mincho)
 //!
@@ -22,15 +22,15 @@ use std::time::Instant;
 // build.rs downloads models here (or MANGA_OCR_MODELS_DIR override).
 const MODEL_DIR: &str = env!("MANGA_OCR_DEFAULT_MODEL_DIR");
 
-const FIXTURE_HORIZONTAL: &str =
-    concat!(env!("CARGO_MANIFEST_DIR"), "/assets/Unit-test-horizontal.png");
+const FIXTURE_YOKOGAKI: &str =
+    concat!(env!("CARGO_MANIFEST_DIR"), "/assets/Unit-test-yokogaki.png");
 const FIXTURE_TATEGAKI: &str =
     concat!(env!("CARGO_MANIFEST_DIR"), "/assets/Unit-test-tategaki.png");
 const FIXTURE_TEGAKI: &str =
     concat!(env!("CARGO_MANIFEST_DIR"), "/assets/Unit-test-tegaki.png");
 
-const EXPECTED_HORIZONTAL: &str = "データを正確に読み取る";
-const EXPECTED_TATEGAKI:   &str = "言語モデルのテスト";
+const EXPECTED_YOKOGAKI: &str = "データを正確に読み取る";
+const EXPECTED_TATEGAKI:   &str = "『言語モデルのテスト』";
 const EXPECTED_TEGAKI:     &str = "手書きの文字サンプル";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -61,12 +61,12 @@ fn assert_ocr_exact(label: &str, ocr: &MangaOcr, path: &str, expected: &str) {
 /// Horizontal printed text — `データを正確に読み取る`.
 /// Clean IPAGothic on white, 600×80 px.
 #[test]
-fn test_horizontal() {
+fn test_yokogaki() {
     if !models_present() {
         eprintln!("skip: models not found at {MODEL_DIR}");
         return;
     }
-    assert_ocr_exact("horizontal", &load_ocr(), FIXTURE_HORIZONTAL, EXPECTED_HORIZONTAL);
+    assert_ocr_exact("yokogaki", &load_ocr(), FIXTURE_YOKOGAKI, EXPECTED_YOKOGAKI);
 }
 
 /// Tategaki (vertical) text — `言語モデルのテスト`.
@@ -94,13 +94,13 @@ fn test_tegaki() {
 /// Verify the model is actually loaded and returns non-empty Japanese
 /// from a trivially simple input — fast smoke test, no large fixture needed.
 #[test]
-fn test_horizontal_is_japanese() {
+fn test_yokogaki_is_japanese() {
     if !models_present() {
         eprintln!("skip: models not found at {MODEL_DIR}");
         return;
     }
-    let img = image::open(FIXTURE_HORIZONTAL)
-        .expect("open horizontal fixture");
+    let img = image::open(FIXTURE_YOKOGAKI)
+        .expect("open yokogaki fixture");
     let ocr = load_ocr();
     let text = ocr.recognize(&img).expect("OCR failed");
     assert!(!text.is_empty(), "OCR returned empty string");

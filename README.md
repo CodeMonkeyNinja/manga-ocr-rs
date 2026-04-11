@@ -58,7 +58,7 @@ manga-ocr inspect          # print model I/O names
 |---------|------|----------|--------|------|
 | `Unit-test-tegaki.png` | 500×80 | `手書きの文字サンプル` | ✓ exact | ~1 400 ms |
 | `Unit-test-tategaki.png` | 70×450 | `言語モデルのテスト` | ✓ exact | ~12 200 ms |
-| `Unit-test-horizontal.png` | 600×80 | `データを正確に読み取る` | ✓ exact | ~34 000 ms |
+| `Unit-test-yokogaki.png` | 600×80 | `データを正確に読み取る` | ✓ exact | ~34 000 ms |
 
 Times are unoptimized debug builds.  Release builds (`cargo test --release`) are
 significantly faster.
