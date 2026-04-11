@@ -120,6 +120,12 @@ MIT — see [LICENSE](LICENSE).
 Model: [mayocream/manga-ocr-onnx](https://huggingface.co/mayocream/manga-ocr-onnx)  
 Original: [kha-white/manga-ocr](https://github.com/kha-white/manga-ocr) (MIT)
 
-Test fixture `ubunchu01_02.png` is from [Manga109](http://www.manga109.org/).
-Please cite Manga109 if you use this data in your own work.
+Test fixture `ubunchu01_02.png` is from [Manga109](http://www.manga109.org/),
+a dataset provided by [Aizawa Yamasaki Matsui Laboratory, The University of Tokyo](http://www.hal.t.u-tokyo.ac.jp/).
+If you use Manga109 data in your work, please cite:
+
+> Mtoi Yusuke, Ito Kota, Aramaki Yuji, Fujimoto Azuma, Ogawa Takuya,
+> Yamasaki Toshihiko, Aizawa Kiyoharu. "Sketch-based Manga Retrieval
+> using Manga109 Dataset." Multimedia Tools and Applications, 76(20),
+> 21811–21838, 2017.
 
