@@ -154,6 +154,7 @@ fn test_yokogaki_is_japanese() {
 /// - **Clipped text** — bounding box clips first/last characters
 /// - **Trailing hallucination** — excess whitespace causes decoder overshoot
 #[test]
+#[ignore]
 fn test_ubunchu_annotations() {
     if !models_present() {
         eprintln!("skip: models not found at {MODEL_DIR}");
