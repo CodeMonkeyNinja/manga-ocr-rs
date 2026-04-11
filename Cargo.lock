@@ -313,6 +313,7 @@ dependencies = [
  "anyhow",
  "image",
  "ort",
+ "serde_json",
 ]
 
 [[package]]
