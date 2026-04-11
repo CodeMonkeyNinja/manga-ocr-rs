@@ -52,16 +52,20 @@ manga-ocr inspect          # print model I/O names
 
 ---
 
-## Test results (debug build, beam search k=4)
+## Test results
 
-| Fixture | Size | Expected | Result | Time |
-|---------|------|----------|--------|------|
-| `Unit-test-tegaki.png` | 500×80 | `手書きの文字サンプル` | ✓ exact | ~1 400 ms |
-| `Unit-test-tategaki.png` | 70×450 | `言語モデルのテスト` | ✓ exact | ~12 200 ms |
-| `Unit-test-yokogaki.png` | 600×80 | `データを正確に読み取る` | ✓ exact | ~34 000 ms |
+| Fixture | Size | Expected |
+|---------|------|----------|
+| `Unit-test-yokogaki.png` | 711×389 | `データを正確に読み取る` |
+| `Unit-test-tategaki.png` | 2760×1504 | `『言語モデルのテスト』` |
+| `Unit-test-tegaki.png`   | 2760×1504 | `手書きの文字サンプル` |
 
-Times are unoptimized debug builds.  Release builds (`cargo test --release`) are
-significantly faster.
+`tategaki` and `tegaki` fixtures are pending re-crop to tight text bounds;
+the current images are near-full-size source exports and the tests are expected
+to fail until properly cropped.  `yokogaki` passes.
+
+Run with `cargo test --release` for representative timings (debug builds are
+significantly slower due to unoptimised ONNX inference).
 
 ---
 
