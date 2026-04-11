@@ -74,8 +74,11 @@ fn run(image_path: &str, model_dir: &str) -> Result<()> {
     let ocr = MangaOcr::new(model_dir).context("load models")?;
 
     let t = Instant::now();
-    let text = ocr.recognize(&img).context("recognize")?;
+    let r = ocr.recognize_with_score(&img).context("recognize")?;
     println!("time  : {:?}", t.elapsed());
-    println!("text  : {text}");
+    println!("text  : {}", r.text);
+    println!("score : {:.4} (beam)  confidence: {:.4} (raw: {:.4})  tokens: {}{}",
+        r.score, r.confidence, r.raw_confidence, r.token_count,
+        if r.truncated { "  TRUNCATED" } else { "" });
     Ok(())
 }

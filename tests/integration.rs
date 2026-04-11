@@ -64,10 +64,12 @@ fn normalise_jp(s: &str) -> String {
 fn assert_ocr_exact(label: &str, ocr: &MangaOcr, path: &str, expected: &str) {
     let img = image::open(path).unwrap_or_else(|e| panic!("{label}: open {path}: {e}"));
     let t = Instant::now();
-    let text = ocr.recognize(&img).unwrap_or_else(|e| panic!("{label}: OCR failed: {e}"));
+    let r = ocr.recognize_with_score(&img).unwrap_or_else(|e| panic!("{label}: OCR failed: {e}"));
     let ms = t.elapsed().as_millis();
-    println!("{label} ({ms} ms): {text:?}  (expected: {expected:?})");
-    assert_eq!(text, expected, "{label}: OCR output does not match ground truth");
+    println!("{label} ({ms} ms): {:?}  (expected: {expected:?})  confidence: {:.4} (raw: {:.4}, score: {:.4})  tokens: {}{}",
+        r.text, r.confidence, r.raw_confidence, r.score, r.token_count,
+        if r.truncated { "  TRUNCATED" } else { "" });
+    assert_eq!(r.text, expected, "{label}: OCR output does not match ground truth");
 }
 
 // ── tests ─────────────────────────────────────────────────────────────────────
@@ -101,14 +103,16 @@ fn test_tategaki() {
     let img = image::open(FIXTURE_TATEGAKI)
         .unwrap_or_else(|e| panic!("tategaki: open: {e}"));
     let t = Instant::now();
-    let text = ocr.recognize(&img)
+    let r = ocr.recognize_with_score(&img)
         .unwrap_or_else(|e| panic!("tategaki: OCR failed: {e}"));
     let ms = t.elapsed().as_millis();
-    println!("tategaki ({ms} ms): {text:?}  (expected: {EXPECTED_TATEGAKI:?})");
+    println!("tategaki ({ms} ms): {:?}  (expected: {EXPECTED_TATEGAKI:?})  confidence: {:.4} (raw: {:.4}, score: {:.4})  tokens: {}{}",
+        r.text, r.confidence, r.raw_confidence, r.score, r.token_count,
+        if r.truncated { "  TRUNCATED" } else { "" });
     // HACK: accept ラスト variant until fixture is properly cropped.
-    let accepted = text == EXPECTED_TATEGAKI
-        || text == EXPECTED_TATEGAKI.replace("テスト", "ラスト");
-    assert!(accepted, "tategaki: got {text:?}, expected {EXPECTED_TATEGAKI:?} (or ラスト variant)");
+    let accepted = r.text == EXPECTED_TATEGAKI
+        || r.text == EXPECTED_TATEGAKI.replace("テスト", "ラスト");
+    assert!(accepted, "tategaki: got {:?}, expected {EXPECTED_TATEGAKI:?} (or ラスト variant)", r.text);
 }
 
 /// Tegaki (handwritten-style) text — `手書きの文字サンプル`.
@@ -133,9 +137,12 @@ fn test_yokogaki_is_japanese() {
     let img = image::open(FIXTURE_YOKOGAKI)
         .expect("open yokogaki fixture");
     let ocr = load_ocr();
-    let text = ocr.recognize(&img).expect("OCR failed");
-    assert!(!text.is_empty(), "OCR returned empty string");
-    assert!(has_japanese(&text), "no Japanese in {text:?}");
+    let r = ocr.recognize_with_score(&img).expect("OCR failed");
+    println!("yokogaki_is_japanese: confidence: {:.4} (raw: {:.4}, score: {:.4})  tokens: {}{}",
+        r.confidence, r.raw_confidence, r.score, r.token_count,
+        if r.truncated { "  TRUNCATED" } else { "" });
+    assert!(!r.text.is_empty(), "OCR returned empty string");
+    assert!(has_japanese(&r.text), "no Japanese in {:?}", r.text);
 }
 
 /// Crops each annotated speech bubble from `ubunchu01_02.png` using the
@@ -199,8 +206,13 @@ fn test_ubunchu_annotations() {
         let desc = ann["description"].as_str().unwrap_or("?");
 
         let t = Instant::now();
-        let result = ocr.recognize(&crop).unwrap_or_else(|e| format!("ERROR: {e}"));
+        let r = ocr.recognize_with_score(&crop);
         let ms = t.elapsed().as_millis();
+
+        let (result, conf, raw_conf, score, tokens, trunc) = match r {
+            Ok(rec) => (rec.text, rec.confidence, rec.raw_confidence, rec.score, rec.token_count, rec.truncated),
+            Err(e) => (format!("ERROR: {e}"), 0.0, 0.0, f32::NEG_INFINITY, 0, false),
+        };
 
         let expected = normalise_jp(expected_raw);
         let actual   = normalise_jp(&result);
@@ -208,10 +220,10 @@ fn test_ubunchu_annotations() {
         let ok = actual == expected;
         if ok { passed += 1; } else { failed += 1; }
 
+        let trunc_tag = if trunc { "  TRUNCATED" } else { "" };
         println!(
-            "[{}] ({ms} ms) {desc}\n  expected: {expected_raw:?}\n  got:      {:?}",
+            "[{}] ({ms} ms) {desc}  confidence: {conf:.4} (raw: {raw_conf:.4}, score: {score:.4})  tokens: {tokens}{trunc_tag}\n  expected: {expected_raw:?}\n  got:      {result:?}",
             if ok { "PASS" } else { "FAIL" },
-            result
         );
     }
 
@@ -245,4 +257,80 @@ fn test_normalise_jp_passthrough() {
 #[test]
 fn test_normalise_jp_empty() {
     assert_eq!(normalise_jp(""), "");
+}
+
+// ── Recognition / confidence tests ───────────────────────────────────────────
+
+/// `recognize` (backward-compat wrapper) still returns plain String.
+#[test]
+fn test_recognize_returns_string() {
+    if !models_present() {
+        eprintln!("skip: models not found at {MODEL_DIR}");
+        return;
+    }
+    let ocr = load_ocr();
+    let img = image::open(FIXTURE_YOKOGAKI).expect("open yokogaki");
+    let text = ocr.recognize(&img).expect("recognize failed");
+    assert_eq!(text, EXPECTED_YOKOGAKI);
+}
+
+/// `recognize_with_score` returns valid Recognition fields.
+#[test]
+fn test_recognition_fields() {
+    if !models_present() {
+        eprintln!("skip: models not found at {MODEL_DIR}");
+        return;
+    }
+    let ocr = load_ocr();
+    let img = image::open(FIXTURE_YOKOGAKI).expect("open yokogaki");
+    let r = ocr.recognize_with_score(&img).expect("recognize_with_score failed");
+
+    assert_eq!(r.text, EXPECTED_YOKOGAKI);
+    // Confidence must be in (0, 1]
+    assert!(r.confidence > 0.0 && r.confidence <= 1.0,
+        "confidence {:.4} out of range (0, 1]", r.confidence);
+    assert!(r.raw_confidence > 0.0 && r.raw_confidence <= 1.0,
+        "raw_confidence {:.4} out of range (0, 1]", r.raw_confidence);
+    // Clean fixture should not truncate
+    assert!(!r.truncated, "clean fixture should not be truncated");
+    // Token count should be positive and reasonable
+    assert!(r.token_count > 0 && r.token_count < 50,
+        "unexpected token_count {} for clean fixture", r.token_count);
+    // Score is a negative log-prob normalised value (should be <= 0)
+    assert!(r.score <= 0.0, "score {:.4} should be <= 0", r.score);
+}
+
+/// Dimension calibration penalises oversized images.
+/// tategaki fixture is 2760×1504 — confidence should be < raw_confidence.
+#[test]
+fn test_dimension_calibration_penalty() {
+    if !models_present() {
+        eprintln!("skip: models not found at {MODEL_DIR}");
+        return;
+    }
+    let ocr = load_ocr();
+    let img = image::open(FIXTURE_TATEGAKI).expect("open tategaki");
+    let r = ocr.recognize_with_score(&img).expect("recognize_with_score failed");
+
+    // 2760×1504 = 4,150,560 px² — exceeds the 2M threshold, plus aspect > 1.8
+    assert!(r.confidence < r.raw_confidence,
+        "large image should be penalised: confidence {:.4} should be < raw {:.4}",
+        r.confidence, r.raw_confidence);
+}
+
+/// Sweet-spot images (yokogaki: 711×389) should get no meaningful penalty.
+#[test]
+fn test_dimension_calibration_no_penalty() {
+    if !models_present() {
+        eprintln!("skip: models not found at {MODEL_DIR}");
+        return;
+    }
+    let ocr = load_ocr();
+    let img = image::open(FIXTURE_YOKOGAKI).expect("open yokogaki");
+    let r = ocr.recognize_with_score(&img).expect("recognize_with_score failed");
+
+    // 711×389 = 276,579 px² — within sweet spot, aspect 1.83 < 2.0
+    assert!((r.confidence - r.raw_confidence).abs() < 0.001,
+        "sweet-spot image should have no penalty: confidence {:.4} vs raw {:.4}",
+        r.confidence, r.raw_confidence);
 }

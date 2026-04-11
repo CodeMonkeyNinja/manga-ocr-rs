@@ -26,7 +26,15 @@ use manga_ocr_rs::MangaOcr;
 // Models are downloaded automatically on first `cargo build` (~441 MB).
 let ocr = MangaOcr::new(manga_ocr_rs::default_model_dir())?;
 let img = image::open("panel.png")?;
+
+// Simple: just the text
 println!("{}", ocr.recognize(&img)?);
+
+// With confidence scores
+let r = ocr.recognize_with_score(&img)?;
+if r.confidence > 0.80 {
+    println!("accepted: {} (confidence: {:.4})", r.text, r.confidence);
+}
 ```
 
 The first `cargo build` downloads three files (~441 MB total) from HuggingFace
@@ -55,31 +63,51 @@ manga-ocr inspect # print model I/O names
 
 ### Unit-test fixtures
 
-| Fixture                  | Size      | Expected                 | Result                  | Time     |
-| ------------------------ | --------- | ------------------------ | ----------------------- | -------- |
-| `Unit-test-yokogaki.png` | 711×389   | `データを正確に読み取る` | exact                   | 1,415 ms |
-| `Unit-test-tategaki.png` | 2760×1504 | `『言語モデルのテスト』` | `ラスト` variant (HACK) | 3,965 ms |
-| `Unit-test-tegaki.png`   | 2760×1504 | `手書きの文字サンプル`   | exact                   | 3,983 ms |
+| Fixture                  | Size      | Expected                 | Result                  | Score  | Tokens | Time     |
+| ------------------------ | --------- | ------------------------ | ----------------------- | ------ | ------ | -------- |
+| `Unit-test-yokogaki.png` | 711×389   | `データを正確に読み取る` | PASS                    | 0.9998 | 12     | 1,597 ms |
+| `Unit-test-tategaki.png` | 2760×1504 | `『言語モデルのテスト』` | `ラスト` variant (HACK) | 0.5584 | 12     | 3,759 ms |
+| `Unit-test-tegaki.png`   | 2760×1504 | `手書きの文字サンプル`   | PASS                    | 0.6689 | 11     | 3,725 ms |
 
 `tategaki` accepts `ラスト` in place of `テスト` — the fixture is too large and
 the model confuses visually similar katakana at this scale. See test doc comment.
 
+Score is `confidence` — the dimension-adjusted geometric mean of per-token
+probabilities (0.0–1.0). `tategaki` and `tegaki` score lower because their
+large source images (2760×1504) get a calibration penalty for heavy downscaling.
+
 ### Real manga — `ubunchu01_02.png` (9 speech bubbles)
 
-| Bubble                | Expected                                     | Result                            | Time      |
-| --------------------- | -------------------------------------------- | --------------------------------- | --------- |
-| Top right, line 1     | `あ あたしの オススメは`                     | PASS                              | 32,292 ms |
-| Top right, large text | `うぶんちゅ`                                 | FAIL — prefix leak from neighbour | 26,876 ms |
-| Top left bubble       | `最近人気の デスクトップな リナックスです！` | PASS                              | 34,826 ms |
-| Center caption        | `※ うぶんちゅではなくウブントゥです`         | FAIL — tiny text, hallucination   | 37,679 ms |
-| Middle bubble         | `却下！`                                     | PASS                              | 5,145 ms  |
-| Bottom center         | `マジ いてえ んだぞ！`                       | FAIL — slanted action text        | 24,365 ms |
-| Bottom right          | `よけんな このっ！`                          | FAIL — screaming/action text      | 18,426 ms |
-| Bottom left, top      | `ハモリながら ケンカしないでーっ`            | FAIL — `ケンカ` → `ケアカ`        | 1,203 ms  |
-| Bottom left, bottom   | `一瞬くらい 検討して くださいよー！`         | PASS                              | 37,936 ms |
+| Bubble                | Expected                                     | Result                            | Score  | Tokens | Trunc | Time      |
+| --------------------- | -------------------------------------------- | --------------------------------- | ------ | ------ | ----- | --------- |
+| Top right, line 1     | `あ あたしの オススメは`                     | PASS                              | 0.9791 | 11     |       | 32,270 ms |
+| Top right, large text | `うぶんちゅ`                                 | FAIL — prefix leak from neighbour | 0.9799 | 8      |       | 26,976 ms |
+| Top left bubble       | `最近人気の デスクトップな リナックスです！` | PASS                              | 0.9998 | 21     |       | 36,087 ms |
+| Center caption        | `※ うぶんちゅではなくウブントゥです`         | FAIL — tiny text, hallucination   | 0.1429 | 300    | YES   | 39,811 ms |
+| Middle bubble         | `却下！`                                     | PASS                              | 0.9147 | 4      |       | 5,275 ms  |
+| Bottom center         | `マジ いてえ んだぞ！`                       | FAIL — slanted action text        | 0.0763 | 300    | YES   | 25,298 ms |
+| Bottom right          | `よけんな このっ！`                          | FAIL — screaming/action text      | 0.0679 | 248    |       | 18,689 ms |
+| Bottom left, top      | `ハモリながら ケンカしないでーっ`            | FAIL — `ケンカ` → `ケアカ`        | 0.7022 | 16     |       | 1,213 ms  |
+| Bottom left, bottom   | `一瞬くらい 検討して くださいよー！`         | PASS                              | 0.9911 | 17     |       | 39,629 ms |
 
 **4/9 pass** on real manga. Failures are documented in the test source.
 Comparison normalises whitespace and full-width `！？` → `!?`.
+
+Score is the dimension-adjusted `confidence` value. Trunc indicates the
+decoder hit the 300-step limit without emitting EOS — a strong hallucination
+signal. Notice the pattern:
+
+- **Hallucinations** (center caption, bottom center/right): score < 0.15,
+  tokens 248–300, two truncated. These are runaway decoder loops.
+- **Correct results**: score > 0.91, tokens 4–21, none truncated.
+- **Minor errors** (bottom left top, `ケンカ`→`ケアカ`): score 0.70, 16
+  tokens — model is partially confident but single-char confused.
+- **Prefix leak** (top right large): score 0.98, 8 tokens — model is
+  confident but saw neighboring text in the crop. Confidence alone won't
+  catch this; crop quality matters.
+
+A threshold of **`confidence >= 0.80 && !truncated`** would reject all
+garbage while keeping valid results.
 
 > **Note:** `test_ubunchu_annotations` is currently `#[ignore]`d in CI because
 > several annotations fail due to bounding-box overlap, tiny crops, and
@@ -112,7 +140,7 @@ DynamicImage
     │
     ▼  vocab.txt  (~30 KB, line-indexed)
     │
-    String  (raw Japanese)
+    Recognition { text, score, confidence, raw_confidence }
 ```
 
 Beam search parameters match `generation_config.json` from the original model.

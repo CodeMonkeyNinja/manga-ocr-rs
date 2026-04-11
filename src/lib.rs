@@ -16,6 +16,10 @@
 //! let ocr = MangaOcr::new(manga_ocr_rs::default_model_dir()).unwrap();
 //! let img = image::open("panel.png").unwrap();
 //! println!("{}", ocr.recognize(&img).unwrap());
+//!
+//! // With confidence scores:
+//! let r = ocr.recognize_with_score(&img).unwrap();
+//! println!("{} (confidence: {:.4})", r.text, r.confidence);
 //! ```
 //!
 //! Models are downloaded automatically on first `cargo build` via `build.rs`.
@@ -145,15 +149,112 @@ fn apply_no_repeat_ngram(ids: &[i64], log_probs: &mut [f32]) {
     }
 }
 
+// ── Confidence calibration ────────────────────────────────────────────────────
+//
+// The model is trained on 224×224.  Crops that are too small lose detail on
+// up-scale; very large crops lose detail on down-scale; extreme aspect ratios
+// cause heavy squishing.  These tables apply a multiplicative penalty to the
+// raw token-level confidence so the returned value better reflects expected
+// accuracy.  Thresholds are tuned empirically — adjust as needed.
+//
+// Format: (exclusive_upper_bound, factor).  First match wins.
+
+/// Calibration by crop area (width × height in pixels).
+const AREA_CALIBRATION: &[(f32, f32)] = &[
+    (2_500.0,     0.3),  // < ~50×50: too small for 224×224 resize
+    (10_000.0,    0.6),  // < ~100×100: marginal
+    (500_000.0,   1.0),  // sweet spot for manga speech-bubble crops
+    (2_000_000.0, 0.9),  // large — some detail loss in downscale
+    (f32::MAX,    0.7),  // very large — heavy downscale
+];
+
+/// Calibration by aspect ratio (max_dim / min_dim).
+const ASPECT_CALIBRATION: &[(f32, f32)] = &[
+    (2.0,     1.0),   // near-square: no penalty
+    (4.0,     0.95),  // moderate stretch
+    (8.0,     0.85),  // significant squish distortion
+    (f32::MAX, 0.7),  // extreme aspect ratio
+];
+
+fn dimension_calibration(width: u32, height: u32) -> f32 {
+    let area = width as f32 * height as f32;
+    let aspect = width.max(height) as f32 / width.min(height).max(1) as f32;
+
+    let area_factor = AREA_CALIBRATION.iter()
+        .find(|(bound, _)| area < *bound)
+        .map(|(_, f)| *f)
+        .unwrap_or(1.0);
+
+    let aspect_factor = ASPECT_CALIBRATION.iter()
+        .find(|(bound, _)| aspect < *bound)
+        .map(|(_, f)| *f)
+        .unwrap_or(1.0);
+
+    area_factor * aspect_factor
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
+
+/// Result of OCR recognition, including confidence metrics.
+///
+/// Returned by [`MangaOcr::recognize_with_score`].
+///
+/// # Confidence scores
+///
+/// - `confidence` — geometric mean of per-token probabilities (0.0–1.0),
+///   adjusted for image dimensions.  Use this for accept/reject thresholding.
+/// - `raw_confidence` — same metric before dimension calibration.
+/// - `score` — length-normalised beam score used internally for beam selection.
+///
+/// # Suppressed beam-search data (available for future use)
+///
+/// The beam search internally computes more than what is surfaced here.
+/// These are not yet exposed but could be added to this struct:
+///
+/// - **Per-token log probabilities** — each token's individual log-prob is
+///   computed during candidate scoring but only the accumulated sum survives.
+///   Would allow callers to highlight which specific characters the model was
+///   uncertain about.
+///
+/// - **Alternative beams** — `completed` holds all finished beams (up to
+///   `NUM_BEAMS`), but only the best is returned.  Runner-up texts could aid
+///   disambiguation (e.g. `テスト` vs `ラスト` — if the top-2 beams disagree,
+///   that signals uncertainty the confidence score alone doesn't capture).
+///
+/// - **Decode step count** — number of decoder iterations before the winning
+///   beam terminated.  Distinct from `truncated` (which is binary): knowing
+///   the model took 5 steps vs 250 gives a sense of output complexity.
+#[derive(Debug, Clone)]
+pub struct Recognition {
+    /// Decoded Japanese text.
+    pub text: String,
+    /// Length-normalised beam score (higher is better).
+    /// Computed as `accumulated_log_prob / token_count ^ LENGTH_PENALTY`.
+    pub score: f32,
+    /// Geometric mean of per-token probabilities (0.0–1.0), before calibration.
+    pub raw_confidence: f32,
+    /// Dimension-adjusted confidence (0.0–1.0).  Penalises crops that are too
+    /// small, too large, or have extreme aspect ratios.
+    pub confidence: f32,
+    /// `true` if the decoder hit `MAX_DECODE_STEPS` without emitting EOS.
+    /// Strong hallucination signal — runaway generation almost always means
+    /// the output is garbage.
+    pub truncated: bool,
+    /// Number of tokens generated (excluding BOS).  Combined with image
+    /// dimensions, enables a characters-per-pixel heuristic: a 50×80 crop
+    /// producing 200 tokens is garbage regardless of confidence.
+    pub token_count: usize,
+}
 
 /// OCR engine wrapping the encoder + decoder ONNX sessions and vocabulary.
 ///
-/// Construct once (model load is expensive), then call [`recognize`] repeatedly.
+/// Construct once (model load is expensive), then call [`recognize`] or
+/// [`recognize_with_score`] repeatedly.
 /// `Session::run` requires `&mut Session`, so each session is wrapped in a
 /// `Mutex` — this lets `MangaOcr` be shared as `Arc<MangaOcr>` across threads.
 ///
 /// [`recognize`]: MangaOcr::recognize
+/// [`recognize_with_score`]: MangaOcr::recognize_with_score
 pub struct MangaOcr {
     encoder: Mutex<Session>,
     decoder: Mutex<Session>,
@@ -195,12 +296,24 @@ impl MangaOcr {
 
     /// OCR one image crop.  Returns raw Japanese text; no translation.
     ///
+    /// Convenience wrapper around [`recognize_with_score`] that discards
+    /// confidence metrics.
+    ///
+    /// [`recognize_with_score`]: MangaOcr::recognize_with_score
+    pub fn recognize(&self, img: &DynamicImage) -> Result<String> {
+        self.recognize_with_score(img).map(|r| r.text)
+    }
+
+    /// OCR one image crop, returning text with confidence scores.
+    ///
     /// Works on any aspect ratio: tategaki (tall), yokogaki (wide), tegaki
     /// (handwritten).  Images are squish-resized to 224×224 (no padding),
     /// matching the original training pipeline.
     ///
     /// Uses beam search (4 beams) matching `generation_config.json`.
-    pub fn recognize(&self, img: &DynamicImage) -> Result<String> {
+    pub fn recognize_with_score(&self, img: &DynamicImage) -> Result<Recognition> {
+        let (img_w, img_h) = (img.width(), img.height());
+
         // ── 1. Encode ────────────────────────────────────────────────────────
         let (pv_shape, pv_data) = preprocess(img);
         let pv_tensor = OrtTensor::<f32>::from_array((pv_shape, pv_data))
@@ -232,9 +345,10 @@ impl MangaOcr {
                 (vec![DECODER_START_TOKEN_ID, tok as i64], lp, done)
             })
             .collect();
-        let mut completed: Vec<(Vec<i64>, f32)> = beams.iter()
+        // completed: (token_ids, accumulated_log_prob, hit_eos)
+        let mut completed: Vec<(Vec<i64>, f32, bool)> = beams.iter()
             .filter(|(_, _, done)| *done)
-            .map(|(ids, score, _)| (ids.clone(), *score))
+            .map(|(ids, score, _)| (ids.clone(), *score, true))
             .collect();
 
         for _step in 1..MAX_DECODE_STEPS {
@@ -299,31 +413,42 @@ impl MangaOcr {
             }).collect();
 
             for (ids, score, done) in &beams {
-                if *done { completed.push((ids.clone(), *score)); }
+                if *done { completed.push((ids.clone(), *score, true)); }
             }
         }
 
+        // Force-push beams that never emitted EOS — these were truncated at
+        // MAX_DECODE_STEPS and are almost certainly hallucinations.
         for (ids, score, done) in &beams {
-            if !done { completed.push((ids.clone(), *score)); }
+            if !done { completed.push((ids.clone(), *score, false)); }
         }
 
         // ── 3. Pick best beam (length-normalised score) ───────────────────────
-        let best_ids = completed.iter()
-            .max_by(|(ids_a, score_a), (ids_b, score_b)| {
+        let (best_ids, best_raw_score, hit_eos) = completed.iter()
+            .max_by(|(ids_a, score_a, _), (ids_b, score_b, _)| {
                 let norm = |ids: &[i64], s: f32| s / (ids.len() as f32).powf(LENGTH_PENALTY);
                 norm(ids_a, *score_a).partial_cmp(&norm(ids_b, *score_b))
                     .unwrap_or(Ordering::Equal)
             })
-            .map(|(ids, _)| ids.as_slice())
-            .unwrap_or(&[]);
+            .map(|(ids, score, eos)| (ids.as_slice(), *score, *eos))
+            .unwrap_or((&[], 0.0, false));
 
-        // ── 4. Detokenise ─────────────────────────────────────────────────────
+        // ── 4. Detokenise & compute confidence ────────────────────────────────
         let decode_ids = if best_ids.first() == Some(&DECODER_START_TOKEN_ID) {
             &best_ids[1..]
         } else {
             best_ids
         };
-        Ok(self.vocab.decode(decode_ids))
+        let text = self.vocab.decode(decode_ids);
+
+        let token_count = best_ids.len().saturating_sub(1); // exclude BOS
+        let num_tokens = token_count.max(1) as f32;
+        let score = best_raw_score / (best_ids.len().max(1) as f32).powf(LENGTH_PENALTY);
+        let raw_confidence = (best_raw_score / num_tokens).exp();
+        let calibration = dimension_calibration(img_w, img_h);
+        let confidence = raw_confidence * calibration;
+
+        Ok(Recognition { text, score, raw_confidence, confidence, truncated: !hit_eos, token_count })
     }
 
     fn decoder_logprobs_single(
