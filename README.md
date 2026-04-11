@@ -120,3 +120,6 @@ MIT — see [LICENSE](LICENSE).
 Model: [mayocream/manga-ocr-onnx](https://huggingface.co/mayocream/manga-ocr-onnx)  
 Original: [kha-white/manga-ocr](https://github.com/kha-white/manga-ocr) (MIT)
 
+Test fixture `ubunchu01_02.png` is from [Manga109](http://www.manga109.org/).
+Please cite Manga109 if you use this data in your own work.
+
