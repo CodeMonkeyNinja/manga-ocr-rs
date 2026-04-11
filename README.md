@@ -51,20 +51,38 @@ manga-ocr inspect          # print model I/O names
 
 ---
 
-## Test results
+## Test results (debug build, beam search k=4)
 
-| Fixture | Size | Expected |
-|---------|------|----------|
-| `Unit-test-yokogaki.png` | 711×389 | `データを正確に読み取る` |
-| `Unit-test-tategaki.png` | 2760×1504 | `『言語モデルのテスト』` |
-| `Unit-test-tegaki.png`   | 2760×1504 | `手書きの文字サンプル` |
+### Unit-test fixtures
 
-`tategaki` and `tegaki` fixtures are pending re-crop to tight text bounds;
-the current images are near-full-size source exports and the tests are expected
-to fail until properly cropped.  `yokogaki` passes.
+| Fixture | Size | Expected | Result | Time |
+|---------|------|----------|--------|------|
+| `Unit-test-yokogaki.png` | 711×389 | `データを正確に読み取る` | exact | ~1 400 ms |
+| `Unit-test-tategaki.png` | 2760×1504 | `『言語モデルのテスト』` | `ラスト` variant (HACK) | ~4 000 ms |
+| `Unit-test-tegaki.png`   | 2760×1504 | `手書きの文字サンプル` | exact | ~4 000 ms |
 
-Run with `cargo test --release` for representative timings (debug builds are
-significantly slower due to unoptimised ONNX inference).
+`tategaki` accepts `ラスト` in place of `テスト` — the fixture is too large and
+the model confuses visually similar katakana at this scale.  See test doc comment.
+
+### Real manga — `ubunchu01_02.png` (9 speech bubbles)
+
+| Bubble | Expected | Result | Time |
+|--------|----------|--------|------|
+| Top right, line 1 | `あ あたしの オススメは` | PASS | ~32 s |
+| Top right, large text | `うぶんちゅ` | FAIL — prefix leak from neighbour | ~27 s |
+| Top left bubble | `最近人気の デスクトップな リナックスです！` | PASS | ~35 s |
+| Center caption | `※ うぶんちゅではなくウブントゥです` | FAIL — tiny text, hallucination | ~38 s |
+| Middle bubble | `却下！` | PASS | ~5 s |
+| Bottom center | `マジいってん んだぜ！` | FAIL — slanted action text | ~24 s |
+| Bottom right | `よけんな このっ！` | FAIL — screaming/action text | ~18 s |
+| Bottom left, top | `ハモリながら ケンカしないでっ` | FAIL — `ケンカ` → `ケアカ` | ~1 s |
+| Bottom left, bottom | `一瞬くらい 検討して くださいよー！` | PASS | ~38 s |
+
+**4/9 pass** on real manga.  Failures are documented in the test source.
+Comparison normalises whitespace and full-width `！？` → `!?`.
+
+Times are from unoptimised debug builds; `cargo test --release` is significantly
+faster.
 
 ---
 
