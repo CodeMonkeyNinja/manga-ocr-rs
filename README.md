@@ -122,6 +122,7 @@ Original: [kha-white/manga-ocr](https://github.com/kha-white/manga-ocr) (MIT)
 
 Manga109: [manga109-dataset](https://github.com/manga109)
 
+```
 @article{multimedia_aizawa_2020,
 author={Kiyoharu Aizawa and Azuma Fujimoto and Atsushi Otsubo and Toru Ogawa and Yusuke Matsui and Koki Tsubota and Hikaru Ikuta},
 title={Building a Manga Dataset ``Manga109'' with Annotations for Multimedia Applications},
@@ -132,5 +133,6 @@ pages={8--18},
 doi={10.1109/mmul.2020.2987895},
 year={2020}
 }
+```
 
 Ubunchu: [Ubunchu manga](https://www.aerialline.com/comics/ubunchu/)
