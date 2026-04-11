@@ -7,7 +7,7 @@ Runs [mayocream/manga-ocr-onnx](https://huggingface.co/mayocream/manga-ocr-onnx)
 via ONNX Runtime. Returns raw Japanese text from an image crop; no translation,
 no furigana stripping — pure image-to-text.
 
-Handles yokogumi (horizontal), tategaki (vertical), and tegaki (handwritten) text.
+Handles yokogaki (horizontal), tategaki (vertical), and tegaki (handwritten) text.
 Images are squish-resized to 224×224 matching the original training pipeline.
 
 ---

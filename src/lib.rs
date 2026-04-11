@@ -4,7 +4,7 @@
 //! (kha-white/manga-ocr-base exported to ONNX) via ONNX Runtime.
 //! Returns raw Japanese text; no translation, no furigana stripping.
 //!
-//! Handles yokogumi (horizontal), tategaki (vertical), and tegaki
+//! Handles yokogaki (horizontal), tategaki (vertical), and tegaki
 //! (handwritten) text.  Images are squish-resized to 224×224 matching the
 //! original training pipeline.
 //!
@@ -195,7 +195,7 @@ impl MangaOcr {
 
     /// OCR one image crop.  Returns raw Japanese text; no translation.
     ///
-    /// Works on any aspect ratio: tategaki (tall), yokogumi (wide), tegaki
+    /// Works on any aspect ratio: tategaki (tall), yokogaki (wide), tegaki
     /// (handwritten).  Images are squish-resized to 224×224 (no padding),
     /// matching the original training pipeline.
     ///
