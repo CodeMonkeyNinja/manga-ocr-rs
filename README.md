@@ -7,9 +7,8 @@ Runs [mayocream/manga-ocr-onnx](https://huggingface.co/mayocream/manga-ocr-onnx)
 via ONNX Runtime.  Returns raw Japanese text from an image crop; no translation,
 no furigana stripping — pure image-to-text.
 
-Handles yokogumi (horizontal), tategaki (vertical), and tegaki (handwritten) text
-by centre-padding crops to a square before resizing, preserving character proportions
-regardless of aspect ratio.
+Handles yokogumi (horizontal), tategaki (vertical), and tegaki (handwritten) text.
+Images are squish-resized to 224×224 matching the original training pipeline.
 
 ---
 
@@ -75,8 +74,8 @@ significantly slower due to unoptimised ONNX inference).
 DynamicImage
     │
     ▼  preprocess()
-    │  grayscale → RGB, centre-pad to square (white fill)
-    │  resize 224×224 Lanczos3, normalize mean=0.5 std=0.5
+    │  grayscale → RGB, squish-resize 224×224 Bilinear
+    │  normalize mean=0.5 std=0.5
     │  shape: [1, 3, 224, 224]
     │
     ▼  encoder_model.onnx  (ViT, ~328 MB)

@@ -4,11 +4,9 @@
 //! (kha-white/manga-ocr-base exported to ONNX) via ONNX Runtime.
 //! Returns raw Japanese text; no translation, no furigana stripping.
 //!
-//! Handles both yokogumi (horizontal) and tategaki (vertical) text by
-//! centre-padding crops to a square before resizing — preserving character
-//! proportions regardless of the crop's aspect ratio.
-//!
-//! Handles tegaki (handwritten) to the extent of the model's training data.
+//! Handles yokogumi (horizontal), tategaki (vertical), and tegaki
+//! (handwritten) text.  Images are squish-resized to 224×224 matching the
+//! original training pipeline.
 //!
 //! # Quick start
 //!
@@ -24,7 +22,7 @@
 //! Override the location by setting `MANGA_OCR_MODELS_DIR` before building.
 
 use anyhow::{Context, Result};
-use image::{imageops, DynamicImage, Rgb, RgbImage};
+use image::{imageops, DynamicImage};
 use ort::session::Session;
 use ort::value::Tensor as OrtTensor;
 use std::cmp::Ordering;
@@ -35,7 +33,6 @@ use std::sync::Mutex;
 const IMG_SIZE: usize = 224;
 const PIXEL_MEAN: f32 = 0.5;
 const PIXEL_STD: f32  = 0.5;
-const MAX_INPUT_DIM: u32 = 1024;
 
 // ── Generation (from generation_config.json) ──────────────────────────────────
 const DECODER_START_TOKEN_ID: i64 = 2;
@@ -59,37 +56,21 @@ pub fn default_model_dir() -> &'static Path {
 
 // ── Preprocessing ─────────────────────────────────────────────────────────────
 
-/// Preprocess following kha-white/manga-ocr-base's original pipeline:
+/// Preprocess matching kha-white/manga-ocr-base's ViTImageProcessor:
 ///
-/// 1. Grayscale → RGB  (manga is black-on-white; eliminates colour noise)
-/// 2. Cap long edge to 1024 px  (avoids huge canvas + extreme downscale)
-/// 3. Centre-pad to square on white canvas  (preserves character proportions
-///    for tategaki columns and other non-square crops)
-/// 4. Resize to 224×224 with Lanczos
-/// 5. Normalise to [-1, 1]  (mean=0.5, std=0.5)
+/// 1. Grayscale → RGB  (`convert("L").convert("RGB")` in the original)
+/// 2. Resize directly to 224×224 with Bilinear  (squishes — no padding)
+/// 3. Normalise to [-1, 1]  (mean=0.5, std=0.5)
+///
+/// The original model was trained on squished (non-aspect-preserving) resizes,
+/// so we must NOT centre-pad to square — doing so degrades accuracy.
 ///
 /// Returns shape `[1, 3, H, W]` + flat NCHW `Vec<f32>`.
 fn preprocess(img: &DynamicImage) -> ([usize; 4], Vec<f32>) {
-    let grey = img.grayscale();
-
-    // Cap the long edge before centre-padding to avoid huge canvas allocations
-    // and extreme single-step Lanczos down-scaling.
-    let (w, h) = (grey.width(), grey.height());
-    let img = if w.max(h) > MAX_INPUT_DIM {
-        let scale = MAX_INPUT_DIM as f32 / w.max(h) as f32;
-        let nw = (w as f32 * scale).round() as u32;
-        let nh = (h as f32 * scale).round() as u32;
-        grey.resize_exact(nw, nh, imageops::FilterType::Lanczos3).to_rgb8()
-    } else {
-        grey.to_rgb8()
-    };
-    let (w, h) = (img.width(), img.height());
-    let side = w.max(h);
-    let mut canvas = RgbImage::from_pixel(side, side, Rgb([255u8, 255, 255]));
-    imageops::overlay(&mut canvas, &img, ((side - w) / 2) as i64, ((side - h) / 2) as i64);
-
-    let resized = DynamicImage::ImageRgb8(canvas)
-        .resize_exact(IMG_SIZE as u32, IMG_SIZE as u32, imageops::FilterType::Lanczos3)
+    // Bilinear matches preprocessor_config.json "resample": 2 (PIL.Image.BILINEAR)
+    let resized = img
+        .grayscale()
+        .resize_exact(IMG_SIZE as u32, IMG_SIZE as u32, imageops::FilterType::Triangle)
         .to_rgb8();
 
     let mut flat = vec![0.0f32; 3 * IMG_SIZE * IMG_SIZE];
@@ -215,7 +196,8 @@ impl MangaOcr {
     /// OCR one image crop.  Returns raw Japanese text; no translation.
     ///
     /// Works on any aspect ratio: tategaki (tall), yokogumi (wide), tegaki
-    /// (handwritten).  Preprocessing centre-pads to square before resizing.
+    /// (handwritten).  Images are squish-resized to 224×224 (no padding),
+    /// matching the original training pipeline.
     ///
     /// Uses beam search (4 beams) matching `generation_config.json`.
     pub fn recognize(&self, img: &DynamicImage) -> Result<String> {
