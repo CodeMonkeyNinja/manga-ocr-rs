@@ -8,6 +8,7 @@ repository = "https://github.com/CodeMonkeyNinja/manga-ocr-rs"
 keywords = ["ocr", "japanese", "manga", "onnx"]
 categories = ["multimedia::images", "text-processing"]
 readme = "README.md"
+exclude = ["mirror/", "assets/"]
 
 [[bin]]
 name = "manga-ocr"
