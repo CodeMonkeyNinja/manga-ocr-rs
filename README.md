@@ -4,7 +4,7 @@ Japanese manga OCR in pure Rust — no Python, no pip.
 
 Runs [mayocream/manga-ocr-onnx](https://huggingface.co/mayocream/manga-ocr-onnx)
 (the original [kha-white/manga-ocr-base](https://github.com/kha-white/manga-ocr) ONNX export)
-via ONNX Runtime.  Returns raw Japanese text from an image crop; no translation,
+via ONNX Runtime. Returns raw Japanese text from an image crop; no translation,
 no furigana stripping — pure image-to-text.
 
 Handles yokogumi (horizontal), tategaki (vertical), and tegaki (handwritten) text.
@@ -30,7 +30,7 @@ println!("{}", ocr.recognize(&img)?);
 ```
 
 The first `cargo build` downloads three files (~441 MB total) from HuggingFace
-into `~/.cache/manga-ocr-rs/` via `curl`.  Subsequent builds are instant.
+into `~/.cache/manga-ocr-rs/` via `curl`. Subsequent builds are instant.
 
 To use a pre-downloaded copy:
 
@@ -46,7 +46,7 @@ MANGA_OCR_MODELS_DIR=/path/to/models cargo build
 cargo install manga-ocr-rs
 
 manga-ocr panel.png
-manga-ocr inspect          # print model I/O names
+manga-ocr inspect # print model I/O names
 ```
 
 ---
@@ -55,30 +55,30 @@ manga-ocr inspect          # print model I/O names
 
 ### Unit-test fixtures
 
-| Fixture | Size | Expected | Result | Time |
-|---------|------|----------|--------|------|
-| `Unit-test-yokogaki.png` | 711×389 | `データを正確に読み取る` | exact | 1 415 ms |
+| Fixture                  | Size      | Expected                 | Result                  | Time     |
+| ------------------------ | --------- | ------------------------ | ----------------------- | -------- |
+| `Unit-test-yokogaki.png` | 711×389   | `データを正確に読み取る` | exact                   | 1 415 ms |
 | `Unit-test-tategaki.png` | 2760×1504 | `『言語モデルのテスト』` | `ラスト` variant (HACK) | 3 965 ms |
-| `Unit-test-tegaki.png`   | 2760×1504 | `手書きの文字サンプル` | exact | 3 983 ms |
+| `Unit-test-tegaki.png`   | 2760×1504 | `手書きの文字サンプル`   | exact                   | 3 983 ms |
 
 `tategaki` accepts `ラスト` in place of `テスト` — the fixture is too large and
-the model confuses visually similar katakana at this scale.  See test doc comment.
+the model confuses visually similar katakana at this scale. See test doc comment.
 
 ### Real manga — `ubunchu01_02.png` (9 speech bubbles)
 
-| Bubble | Expected | Result | Time |
-|--------|----------|--------|------|
-| Top right, line 1 | `あ あたしの オススメは` | PASS | 32 292 ms |
-| Top right, large text | `うぶんちゅ` | FAIL — prefix leak from neighbour | 26 876 ms |
-| Top left bubble | `最近人気の デスクトップな リナックスです！` | PASS | 34 826 ms |
-| Center caption | `※ うぶんちゅではなくウブントゥです` | FAIL — tiny text, hallucination | 37 679 ms |
-| Middle bubble | `却下！` | PASS | 5 145 ms |
-| Bottom center | `マジいってん んだぜ！` | FAIL — slanted action text | 24 365 ms |
-| Bottom right | `よけんな このっ！` | FAIL — screaming/action text | 18 426 ms |
-| Bottom left, top | `ハモリながら ケンカしないでっ` | FAIL — `ケンカ` → `ケアカ` | 1 203 ms |
-| Bottom left, bottom | `一瞬くらい 検討して くださいよー！` | PASS | 37 936 ms |
+| Bubble                | Expected                                     | Result                            | Time      |
+| --------------------- | -------------------------------------------- | --------------------------------- | --------- |
+| Top right, line 1     | `あ あたしの オススメは`                     | PASS                              | 32 292 ms |
+| Top right, large text | `うぶんちゅ`                                 | FAIL — prefix leak from neighbour | 26 876 ms |
+| Top left bubble       | `最近人気の デスクトップな リナックスです！` | PASS                              | 34 826 ms |
+| Center caption        | `※ うぶんちゅではなくウブントゥです`         | FAIL — tiny text, hallucination   | 37 679 ms |
+| Middle bubble         | `却下！`                                     | PASS                              | 5 145 ms  |
+| Bottom center         | `マジいってん んだぜ！`                      | FAIL — slanted action text        | 24 365 ms |
+| Bottom right          | `よけんな このっ！`                          | FAIL — screaming/action text      | 18 426 ms |
+| Bottom left, top      | `ハモリながら ケンカしないでっ`              | FAIL — `ケンカ` → `ケアカ`        | 1 203 ms  |
+| Bottom left, bottom   | `一瞬くらい 検討して くださいよー！`         | PASS                              | 37 936 ms |
 
-**4/9 pass** on real manga.  Failures are documented in the test source.
+**4/9 pass** on real manga. Failures are documented in the test source.
 Comparison normalises whitespace and full-width `！？` → `!?`.
 
 Times are from unoptimised debug builds; `cargo test --release` is significantly
@@ -120,12 +120,17 @@ MIT — see [LICENSE](LICENSE).
 Model: [mayocream/manga-ocr-onnx](https://huggingface.co/mayocream/manga-ocr-onnx)  
 Original: [kha-white/manga-ocr](https://github.com/kha-white/manga-ocr) (MIT)
 
-Test fixture `ubunchu01_02.png` is from [Manga109](http://www.manga109.org/),
-a dataset provided by [Aizawa Yamasaki Matsui Laboratory, The University of Tokyo](http://www.hal.t.u-tokyo.ac.jp/).
-If you use Manga109 data in your work, please cite:
+Manga109: [manga109-dataset](https://github.com/manga109)
 
-> Mtoi Yusuke, Ito Kota, Aramaki Yuji, Fujimoto Azuma, Ogawa Takuya,
-> Yamasaki Toshihiko, Aizawa Kiyoharu. "Sketch-based Manga Retrieval
-> using Manga109 Dataset." Multimedia Tools and Applications, 76(20),
-> 21811–21838, 2017.
+@article{multimedia_aizawa_2020,
+author={Kiyoharu Aizawa and Azuma Fujimoto and Atsushi Otsubo and Toru Ogawa and Yusuke Matsui and Koki Tsubota and Hikaru Ikuta},
+title={Building a Manga Dataset ``Manga109'' with Annotations for Multimedia Applications},
+journal={IEEE MultiMedia},
+volume={27},
+number={2},
+pages={8--18},
+doi={10.1109/mmul.2020.2987895},
+year={2020}
+}
 
+Ubunchu: [Ubunchu manga](https://www.aerialline.com/comics/ubunchu/)
