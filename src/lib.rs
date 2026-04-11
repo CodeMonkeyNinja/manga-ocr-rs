@@ -35,6 +35,7 @@ use std::sync::Mutex;
 const IMG_SIZE: usize = 224;
 const PIXEL_MEAN: f32 = 0.5;
 const PIXEL_STD: f32  = 0.5;
+const MAX_INPUT_DIM: u32 = 1024;
 
 // ── Generation (from generation_config.json) ──────────────────────────────────
 const DECODER_START_TOKEN_ID: i64 = 2;
@@ -61,14 +62,27 @@ pub fn default_model_dir() -> &'static Path {
 /// Preprocess following kha-white/manga-ocr-base's original pipeline:
 ///
 /// 1. Grayscale → RGB  (manga is black-on-white; eliminates colour noise)
-/// 2. Centre-pad to square on white canvas  (preserves character proportions
+/// 2. Cap long edge to 1024 px  (avoids huge canvas + extreme downscale)
+/// 3. Centre-pad to square on white canvas  (preserves character proportions
 ///    for tategaki columns and other non-square crops)
-/// 3. Resize to 224×224 with Lanczos
-/// 4. Normalise to [-1, 1]  (mean=0.5, std=0.5)
+/// 4. Resize to 224×224 with Lanczos
+/// 5. Normalise to [-1, 1]  (mean=0.5, std=0.5)
 ///
 /// Returns shape `[1, 3, H, W]` + flat NCHW `Vec<f32>`.
 fn preprocess(img: &DynamicImage) -> ([usize; 4], Vec<f32>) {
-    let img = img.grayscale().to_rgb8();
+    let grey = img.grayscale();
+
+    // Cap the long edge before centre-padding to avoid huge canvas allocations
+    // and extreme single-step Lanczos down-scaling.
+    let (w, h) = (grey.width(), grey.height());
+    let img = if w.max(h) > MAX_INPUT_DIM {
+        let scale = MAX_INPUT_DIM as f32 / w.max(h) as f32;
+        let nw = (w as f32 * scale).round() as u32;
+        let nh = (h as f32 * scale).round() as u32;
+        grey.resize_exact(nw, nh, imageops::FilterType::Lanczos3).to_rgb8()
+    } else {
+        grey.to_rgb8()
+    };
     let (w, h) = (img.width(), img.height());
     let side = w.max(h);
     let mut canvas = RgbImage::from_pixel(side, side, Rgb([255u8, 255, 255]));
