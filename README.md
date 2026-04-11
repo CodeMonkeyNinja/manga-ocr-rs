@@ -81,6 +81,12 @@ the model confuses visually similar katakana at this scale. See test doc comment
 **4/9 pass** on real manga. Failures are documented in the test source.
 Comparison normalises whitespace and full-width `！？` → `!?`.
 
+> **Note:** `test_ubunchu_annotations` is currently `#[ignore]`d in CI because
+> several annotations fail due to bounding-box overlap, tiny crops, and
+> decorative action text that the model hallucinates on. Run it manually with
+> `cargo test test_ubunchu_annotations -- --ignored`. See
+> [docs/ubunchu-test-analysis.md](docs/ubunchu-test-analysis.md) for details.
+
 Times are from unoptimised debug builds; `cargo test --release` is significantly
 faster.
 
@@ -116,6 +122,8 @@ Beam search parameters match `generation_config.json` from the original model.
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+## Credits and Citations
 
 Model: [mayocream/manga-ocr-onnx](https://huggingface.co/mayocream/manga-ocr-onnx)  
 Original: [kha-white/manga-ocr](https://github.com/kha-white/manga-ocr) (MIT)
