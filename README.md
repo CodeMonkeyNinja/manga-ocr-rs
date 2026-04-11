@@ -57,9 +57,9 @@ manga-ocr inspect          # print model I/O names
 
 | Fixture | Size | Expected | Result | Time |
 |---------|------|----------|--------|------|
-| `Unit-test-yokogaki.png` | 711×389 | `データを正確に読み取る` | exact | ~1 400 ms |
-| `Unit-test-tategaki.png` | 2760×1504 | `『言語モデルのテスト』` | `ラスト` variant (HACK) | ~4 000 ms |
-| `Unit-test-tegaki.png`   | 2760×1504 | `手書きの文字サンプル` | exact | ~4 000 ms |
+| `Unit-test-yokogaki.png` | 711×389 | `データを正確に読み取る` | exact | 1 415 ms |
+| `Unit-test-tategaki.png` | 2760×1504 | `『言語モデルのテスト』` | `ラスト` variant (HACK) | 3 965 ms |
+| `Unit-test-tegaki.png`   | 2760×1504 | `手書きの文字サンプル` | exact | 3 983 ms |
 
 `tategaki` accepts `ラスト` in place of `テスト` — the fixture is too large and
 the model confuses visually similar katakana at this scale.  See test doc comment.
@@ -68,15 +68,15 @@ the model confuses visually similar katakana at this scale.  See test doc commen
 
 | Bubble | Expected | Result | Time |
 |--------|----------|--------|------|
-| Top right, line 1 | `あ あたしの オススメは` | PASS | ~32 s |
-| Top right, large text | `うぶんちゅ` | FAIL — prefix leak from neighbour | ~27 s |
-| Top left bubble | `最近人気の デスクトップな リナックスです！` | PASS | ~35 s |
-| Center caption | `※ うぶんちゅではなくウブントゥです` | FAIL — tiny text, hallucination | ~38 s |
-| Middle bubble | `却下！` | PASS | ~5 s |
-| Bottom center | `マジいってん んだぜ！` | FAIL — slanted action text | ~24 s |
-| Bottom right | `よけんな このっ！` | FAIL — screaming/action text | ~18 s |
-| Bottom left, top | `ハモリながら ケンカしないでっ` | FAIL — `ケンカ` → `ケアカ` | ~1 s |
-| Bottom left, bottom | `一瞬くらい 検討して くださいよー！` | PASS | ~38 s |
+| Top right, line 1 | `あ あたしの オススメは` | PASS | 32 292 ms |
+| Top right, large text | `うぶんちゅ` | FAIL — prefix leak from neighbour | 26 876 ms |
+| Top left bubble | `最近人気の デスクトップな リナックスです！` | PASS | 34 826 ms |
+| Center caption | `※ うぶんちゅではなくウブントゥです` | FAIL — tiny text, hallucination | 37 679 ms |
+| Middle bubble | `却下！` | PASS | 5 145 ms |
+| Bottom center | `マジいってん んだぜ！` | FAIL — slanted action text | 24 365 ms |
+| Bottom right | `よけんな このっ！` | FAIL — screaming/action text | 18 426 ms |
+| Bottom left, top | `ハモリながら ケンカしないでっ` | FAIL — `ケンカ` → `ケアカ` | 1 203 ms |
+| Bottom left, bottom | `一瞬くらい 検討して くださいよー！` | PASS | 37 936 ms |
 
 **4/9 pass** on real manga.  Failures are documented in the test source.
 Comparison normalises whitespace and full-width `！？` → `!?`.
@@ -119,3 +119,4 @@ MIT — see [LICENSE](LICENSE).
 
 Model: [mayocream/manga-ocr-onnx](https://huggingface.co/mayocream/manga-ocr-onnx)  
 Original: [kha-white/manga-ocr](https://github.com/kha-white/manga-ocr) (MIT)
+
