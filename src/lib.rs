@@ -41,7 +41,7 @@ const PIXEL_STD: f32  = 0.5;
 // ── Generation (from generation_config.json) ──────────────────────────────────
 const DECODER_START_TOKEN_ID: i64 = 2;
 const EOS_TOKEN_ID: i64           = 3;
-const MAX_DECODE_STEPS: usize     = 300;
+const DEFAULT_MAX_DECODE_STEPS: usize = 50;
 const NUM_BEAMS: usize            = 4;
 const LENGTH_PENALTY: f32         = 2.0;
 const NO_REPEAT_NGRAM: usize      = 3;
@@ -236,7 +236,7 @@ pub struct Recognition {
     /// Dimension-adjusted confidence (0.0–1.0).  Penalises crops that are too
     /// small, too large, or have extreme aspect ratios.
     pub confidence: f32,
-    /// `true` if the decoder hit `MAX_DECODE_STEPS` without emitting EOS.
+    /// `true` if the decoder hit `max_decode_steps` without emitting EOS.
     /// Strong hallucination signal — runaway generation almost always means
     /// the output is garbage.
     pub truncated: bool,
@@ -259,6 +259,7 @@ pub struct MangaOcr {
     encoder: Mutex<Session>,
     decoder: Mutex<Session>,
     vocab:   VocabDecoder,
+    max_decode_steps: usize,
 }
 
 impl MangaOcr {
@@ -291,7 +292,18 @@ impl MangaOcr {
             encoder: Mutex::new(encoder),
             decoder: Mutex::new(decoder),
             vocab,
+            max_decode_steps: DEFAULT_MAX_DECODE_STEPS,
         })
+    }
+
+    /// Set the maximum number of decoder steps (default: 50).
+    ///
+    /// No manga speech bubble needs more than ~50 tokens.  The original
+    /// `generation_config.json` ships 300, but that only increases worst-case
+    /// latency when the decoder runs away on garbage input.
+    pub fn with_max_decode_steps(mut self, n: usize) -> Self {
+        self.max_decode_steps = n.max(1);
+        self
     }
 
     /// OCR one image crop.  Returns raw Japanese text; no translation.
@@ -351,7 +363,7 @@ impl MangaOcr {
             .map(|(ids, score, _)| (ids.clone(), *score, true))
             .collect();
 
-        for _step in 1..MAX_DECODE_STEPS {
+        for _step in 1..self.max_decode_steps {
             let active: Vec<usize> = beams.iter().enumerate()
                 .filter(|(_, (_, _, done))| !*done)
                 .map(|(i, _)| i)
@@ -418,7 +430,7 @@ impl MangaOcr {
         }
 
         // Force-push beams that never emitted EOS — these were truncated at
-        // MAX_DECODE_STEPS and are almost certainly hallucinations.
+        // max_decode_steps and are almost certainly hallucinations.
         for (ids, score, done) in &beams {
             if !done { completed.push((ids.clone(), *score, false)); }
         }
