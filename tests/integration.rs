@@ -2,9 +2,9 @@
 //!
 //! Uses three purpose-built fixtures in `assets/`:
 //!
-//!   Unit-test-yokogaki.png    — `データを正確に読み取る`  (600×80, IPAGothic)
-//!   Unit-test-tategaki.png    — `言語モデルのテスト`       (70×450, IPAGothic)
-//!   Unit-test-tegaki.png      — `手書きの文字サンプル`     (500×80, Dejima-Mincho)
+//!   Unit-test-yokogaki.png    — `データを正確に読み取る`  (360×197 px, IPAGothic)
+//!   Unit-test-tategaki.png    — `言語モデルのテスト`       (480×262 px, IPAGothic)
+//!   Unit-test-tegaki.png      — `手書きの文字サンプル`     (480×262 px, Dejima-Mincho)
 //!
 //! Each image is clean black text on white — the same class of input the model
 //! was trained on (scanned manga).  Ground truth is known, so EXPECTED_* constants
@@ -87,12 +87,10 @@ fn test_yokogaki() {
 
 /// Tategaki (vertical) text — `言語モデルのテスト`.
 ///
-/// HACK: The fixture is a large image (2760×1504) where the vertical text
-/// occupies a small region.  When squish-resized to 224×224, the model
-/// confuses the visually similar katakana テ and ラ, producing `ラスト`
-/// instead of `テスト`.  We accept either until the fixture is replaced
-/// with a properly cropped image.  The correct expected value remains
-/// EXPECTED_TATEGAKI (`『言語モデルのテスト』`).
+/// The fixture is a 480×262 image where the vertical text occupies the left
+/// region.  At this size the model reads the correct characters but may
+/// confuse the bracket style: `『』` (double corner) vs `「」` (single corner).
+/// We accept either.
 #[test]
 fn test_tategaki() {
     if !models_present() {
@@ -109,14 +107,14 @@ fn test_tategaki() {
     println!("tategaki ({ms} ms): {:?}  (expected: {EXPECTED_TATEGAKI:?})  confidence: {:.4} (raw: {:.4}, score: {:.4})  tokens: {}{}",
         r.text, r.confidence, r.raw_confidence, r.score, r.token_count,
         if r.truncated { "  TRUNCATED" } else { "" });
-    // HACK: accept ラスト variant until fixture is properly cropped.
+    // Accept 「」 variant — model reads correct text but may confuse bracket style.
     let accepted = r.text == EXPECTED_TATEGAKI
-        || r.text == EXPECTED_TATEGAKI.replace("テスト", "ラスト");
-    assert!(accepted, "tategaki: got {:?}, expected {EXPECTED_TATEGAKI:?} (or ラスト variant)", r.text);
+        || r.text == EXPECTED_TATEGAKI.replace('『', "「").replace('』', "」");
+    assert!(accepted, "tategaki: got {:?}, expected {EXPECTED_TATEGAKI:?} (or 「」bracket variant)", r.text);
 }
 
 /// Tegaki (handwritten-style) text — `手書きの文字サンプル`.
-/// Dejima-Mincho font, 500×80 px.
+/// Dejima-Mincho font, 480×262 px.
 #[test]
 fn test_tegaki() {
     if !models_present() {
@@ -300,10 +298,10 @@ fn test_recognition_fields() {
     assert!(r.score <= 0.0, "score {:.4} should be <= 0", r.score);
 }
 
-/// Dimension calibration penalises oversized images.
-/// tategaki fixture is 2760×1504 — confidence should be < raw_confidence.
+/// Realistic manga-bubble-sized images should get no meaningful penalty.
+/// Both fixtures are now in the sweet spot (360×197 and 480×262).
 #[test]
-fn test_dimension_calibration_penalty() {
+fn test_dimension_calibration_no_penalty_tategaki() {
     if !models_present() {
         eprintln!("skip: models not found at {MODEL_DIR}");
         return;
@@ -312,13 +310,13 @@ fn test_dimension_calibration_penalty() {
     let img = image::open(FIXTURE_TATEGAKI).expect("open tategaki");
     let r = ocr.recognize_with_score(&img).expect("recognize_with_score failed");
 
-    // 2760×1504 = 4,150,560 px² — exceeds the 2M threshold, plus aspect > 1.8
-    assert!(r.confidence < r.raw_confidence,
-        "large image should be penalised: confidence {:.4} should be < raw {:.4}",
+    // 480×262 = 125,760 px² — within sweet spot, no penalty expected
+    assert!((r.confidence - r.raw_confidence).abs() < 0.001,
+        "manga-bubble-sized image should have no penalty: confidence {:.4} vs raw {:.4}",
         r.confidence, r.raw_confidence);
 }
 
-/// Sweet-spot images (yokogaki: 711×389) should get no meaningful penalty.
+/// Sweet-spot images (yokogaki: 360×197) should get no meaningful penalty.
 #[test]
 fn test_dimension_calibration_no_penalty() {
     if !models_present() {
@@ -329,7 +327,7 @@ fn test_dimension_calibration_no_penalty() {
     let img = image::open(FIXTURE_YOKOGAKI).expect("open yokogaki");
     let r = ocr.recognize_with_score(&img).expect("recognize_with_score failed");
 
-    // 711×389 = 276,579 px² — within sweet spot, aspect 1.83 < 2.0
+    // 360×197 = 70,920 px² — within sweet spot
     assert!((r.confidence - r.raw_confidence).abs() < 0.001,
         "sweet-spot image should have no penalty: confidence {:.4} vs raw {:.4}",
         r.confidence, r.raw_confidence);

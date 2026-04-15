@@ -61,20 +61,23 @@ manga-ocr inspect # print model I/O names
 
 ## Test results (debug build, beam search k=4)
 
-### Unit-test fixtures
+### Unit-test fixtures (rescaled 2026-04-15)
 
-| Fixture                  | Size      | Expected                 | Result                  | Score  | Tokens | Time     |
-| ------------------------ | --------- | ------------------------ | ----------------------- | ------ | ------ | -------- |
-| `Unit-test-yokogaki.png` | 711×389   | `データを正確に読み取る` | PASS                    | 0.9998 | 12     | 1,597 ms |
-| `Unit-test-tategaki.png` | 2760×1504 | `『言語モデルのテスト』` | `ラスト` variant (HACK) | 0.5584 | 12     | 3,759 ms |
-| `Unit-test-tegaki.png`   | 2760×1504 | `手書きの文字サンプル`   | PASS                    | 0.6689 | 11     | 3,725 ms |
+| Fixture                  | Size    | Expected                 | Result                      | Confidence | Tokens | Time     |
+| ------------------------ | ------- | ------------------------ | --------------------------- | ---------- | ------ | -------- |
+| `Unit-test-yokogaki.png` | 360×197 | `データを正確に読み取る` | PASS (exact)                | 0.9997     | 12     | ~1.8 s   |
+| `Unit-test-tategaki.png` | 480×262 | `『言語モデルのテスト』` | PASS (`「」` bracket variant) | 0.7967     | 12     | ~2.0 s   |
+| `Unit-test-tegaki.png`   | 480×262 | `手書きの文字サンプル`   | PASS (exact)                | 0.9552     | 11     | ~1.9 s   |
 
-`tategaki` accepts `ラスト` in place of `テスト` — the fixture is too large and
-the model confuses visually similar katakana at this scale. See test doc comment.
+All three pass. Tategaki reads the correct text but uses single corner brackets
+`「」` instead of double `『』` — the bracket style is ambiguous at this resolution.
+When cropped tighter by a text detector (e.g. DBNet → 142×262), the model returns
+the correct `『』`.
 
-Score is `confidence` — the dimension-adjusted geometric mean of per-token
-probabilities (0.0–1.0). `tategaki` and `tegaki` score lower because their
-large source images (2760×1504) get a calibration penalty for heavy downscaling.
+Confidence is the dimension-adjusted geometric mean of per-token probabilities
+(0.0–1.0). No calibration penalty at these realistic manga-bubble sizes.
+
+See [unified benchmark](https://github.com/HidekiAI/lenzu/blob/trunk/docs/scores.md) for cross-engine comparison (manga-ocr-rs vs DBNet+manga-ocr-rs vs PaddleOCR-VL vs Umi-OCR).
 
 ### Real manga — `ubunchu01_02.png` (9 speech bubbles)
 
