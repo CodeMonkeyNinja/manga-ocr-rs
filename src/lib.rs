@@ -46,6 +46,14 @@ const NUM_BEAMS: usize            = 4;
 const LENGTH_PENALTY: f32         = 2.0;
 const NO_REPEAT_NGRAM: usize      = 3;
 
+// ── Early bailout — abort hallucinating decoders before they waste time ───────
+// After MIN_TOKENS tokens, if the best beam's per-token geometric mean
+// probability drops below CONFIDENCE, the decoder is generating garbage.
+// Breaking early saves ~67% of the hallucination time (16/50 steps instead
+// of running the full loop, then getting caught by the confidence gate).
+const EARLY_BAILOUT_MIN_TOKENS: usize = 16;
+const EARLY_BAILOUT_CONFIDENCE: f32   = 0.30;
+
 // ── Default model directory (set by build.rs) ─────────────────────────────────
 
 /// Returns the directory where `build.rs` downloaded (or expects) the model files.
@@ -426,6 +434,27 @@ impl MangaOcr {
 
             for (ids, score, done) in &beams {
                 if *done { completed.push((ids.clone(), *score, true)); }
+            }
+
+            // Early bailout: if the best active beam's running confidence
+            // drops below the threshold after enough tokens, the decoder is
+            // hallucinating.  Break now — the force-push below will mark
+            // these beams as truncated (hit_eos=false).
+            let best_active = beams.iter()
+                .filter(|(_, _, done)| !*done)
+                .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(Ordering::Equal));
+            if let Some((ids, score, _)) = best_active {
+                let num_generated = ids.len().saturating_sub(1);
+                if num_generated >= EARLY_BAILOUT_MIN_TOKENS {
+                    let running_conf = (*score / num_generated as f32).exp();
+                    if running_conf < EARLY_BAILOUT_CONFIDENCE {
+                        eprintln!(
+                            "[manga-ocr] early bailout at {} tokens — confidence {:.1}% < {:.0}%",
+                            num_generated, running_conf * 100.0, EARLY_BAILOUT_CONFIDENCE * 100.0,
+                        );
+                        break;
+                    }
+                }
             }
         }
 
