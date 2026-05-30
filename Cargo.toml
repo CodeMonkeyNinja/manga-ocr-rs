@@ -1,6 +1,6 @@
 [package]
 name = "manga-ocr-rs"
-version = "0.1.3"
+version = "0.1.4"
 edition = "2021"
 license = "MIT"
 description = "Japanese manga OCR — ViT encoder + BERT decoder via ONNX Runtime"
