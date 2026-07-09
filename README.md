@@ -150,6 +150,10 @@ Beam search parameters match `generation_config.json` from the original model.
 
 ---
 
+## Dog-fooded in production
+
+This crate is a core dependency of [Lenzu](https://github.com/CodeMonkeyNinja/lenzu) — a transparent OCR lens overlay for Linux desktop. It is pulled from crates.io and used at runtime for Japanese OCR recognition.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
