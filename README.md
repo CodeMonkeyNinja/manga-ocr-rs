@@ -17,7 +17,7 @@ Images are squish-resized to 224×224 matching the original training pipeline.
 ```toml
 # Cargo.toml
 [dependencies]
-manga-ocr-rs = "0.1"
+manga-ocr-rs = "1"
 ```
 
 ```rust
